@@ -4,6 +4,14 @@ from pandas import DataFrame as df
 import matplotlib.pyplot as plt
 import ipywidgets as widgets
 from lmfit.models import GaussianModel, LinearModel, VoigtModel, PolynomialModel
+import re
+from os import listdir
+from os.path import isfile, join, dirname
+
+def FileList(FolderPath, Filter) :
+    FileList = [f for f in listdir(FolderPath) if isfile(join(FolderPath, f))]
+    FileList = [k for k in FileList if Filter in k]
+    return FileList
 
 def ImportData(FolderPath, FileName) :
     
@@ -11,9 +19,9 @@ def ImportData(FolderPath, FileName) :
     if FileName == 'None' :
         raise HaltException('Please select file')
     f = h5py.File(FolderPath + '/' + FileName, 'r')
-    if not 'BinnedData/E_bin_centers' in f :
+    if not 'BinnedData/xas_bins' in f :
         raise HaltException('Energy data missing')
-    if not 'BinnedData/delays_fs' in f :
+    if not 'BinnedData/delay_bins' in f :
         raise HaltException('Delay data missing')
     if not 'BinnedData/XAS_2dmatrix' in f :
         raise HaltException('Intensity data missing')
@@ -21,14 +29,24 @@ def ImportData(FolderPath, FileName) :
         raise HaltException('Error bar data missing')
     
     # Load data
-    Energy = f['BinnedData/E_bin_centers'][...]
-    Delay = f['BinnedData/delays_fs'][...]
+    Energy = f['BinnedData/xas_bins'][...]
+    Delay = f['BinnedData/delay_bins'][...]
     Signal = f['/BinnedData/XAS_2dmatrix'][...]
     ErrorBars = f['/BinnedData/XAS_2dmatrix_err'][...]
     
     f.close()
     return Energy, Signal, Delay, ErrorBars
 
+def Normalize(x, y, Min, Max) :
+    Min_Index = (np.abs(x - Min)).argmin()
+    Max_Index = (np.abs(x - Max)).argmin()
+    if len(y.shape) == 1 :
+        Norm = np.nanmean(y[Min_Index:Max_Index])
+    if len(y.shape) == 2 :
+        Norm = np.nanmean(np.transpose(y)[Min_Index:Max_Index])
+    y = y / Norm - 1
+    return x, y
+    
 def TrimData(Energy, Signal, Delay, ErrorBars, Min, Max) :
     
     # Trim data
@@ -73,90 +91,142 @@ def SubtractBackground(Energy, Signal, Background_Energy, Background, Min, Max) 
     
     return Signal
 
-def FitModel(NumberPeaks) :
-    Model = LinearModel(prefix='B_')
-    i = 0
-    while i < NumberPeaks :
-        Model = Model + GaussianModel(prefix='G'+str(i+1)+'_')
-        i+=1
-    return Model
+class Fits :
+    
+    def __init__(self,ModelString) :
+        
+        self.NumModels = {}
+        self.NumModels['Total'] = len(ModelString)
+        self.NumModels['Linear'] = len(re.findall('L', ModelString))
+        self.NumModels['Gaussian'] = len(re.findall('G', ModelString))
+        self.NumModels['Voigt'] = len(re.findall('V', ModelString))
+        if self.NumModels['Total'] != self.NumModels['Linear'] + self.NumModels['Gaussian'] + self.NumModels['Voigt'] :
+            print('Warning: Number of total functions does not equal number of summed functions')
+        ModelCounter= 0
+        i = 0
+        while i < self.NumModels['Linear'] :
+            if ModelCounter == 0 :
+                self.Model = LinearModel(prefix='L'+str(i+1)+'_')
+            else :
+                self.Model = self.Model + LinearModel(prefix='L'+str(i+1)+'_')
+            ModelCounter = ModelCounter + 1
+            i += 1
+        i = 0
+        while i < self.NumModels['Gaussian'] :
+            if ModelCounter == 0 :
+                self.Model = GaussianModel(prefix='G'+str(i+1)+'_')
+            else :
+                self.Model = self.Model + GaussianModel(prefix='G'+str(i+1)+'_')
+            ModelCounter = ModelCounter + 1
+            i += 1
+        i = 0
+        while i < self.NumModels['Voigt'] :
+            if ModelCounter == 0 :
+                self.Model = VoigtModel(prefix='V'+str(i+1)+'_')
+            else :
+                self.Model = self.Model + VoigtModel(prefix='V'+str(i+1)+'_')
+            ModelCounter = ModelCounter + 1
+            i += 1
+    
+    def Fit(self,x,y,err,Delay,Params) :
+        
+        self.x = x
+        self.y = y
+        self.err = err
+        self.Delay = Delay
+        Fit = self.Model.fit(y, Params, x=x, fit_kws={'maxfev': 10000})
+        
+        fit_x_delta = 0.01
+        fit_len = int((max(x)-min(x))/fit_x_delta + 1)
+        self.fit_x = np.zeros((fit_len))
+        i = 0
+        while i < fit_len :
+            self.fit_x[i] = min(x) + i * fit_x_delta
+            i += 1
+        self.fit_comps = Fit.eval_components(Fit.params, x=self.fit_x)
+        self.fit_y = Fit.eval(x=self.fit_x)
+        
+        # Save parameters
+        Parameters = np.zeros((1+2*self.NumModels['Linear']+3*self.NumModels['Gaussian']+3*self.NumModels['Voigt']))
+        ParameterNames = list(('Delay',))
+        Parameters[0] = Delay
+        self.ParameterString = ''
+        Counter = 1
+        i = 0
+        while i < self.NumModels['Linear'] :
+            ParameterNames.extend(('L'+str(i+1)+'_intercept','L'+str(i+1)+'_slope'))
+            self.ParameterString = self.ParameterString + '<p>Linear '+str(i+1)+' |&nbsp; Intercept: '+ str(round(Fit.params['L'+str(i+1)+'_intercept'].value,4)) + ',&nbsp; Slope: ' + str(round(Fit.params['L'+str(i+1)+'_slope'].value,4))
+            Parameters[0+Counter] = Fit.params['L'+str(i+1)+'_intercept'].value
+            Parameters[1+Counter] = Fit.params['L'+str(i+1)+'_slope'].value
+            Counter = Counter + 2
+            i += 1
+        i = 0
+        while i < self.NumModels['Gaussian'] :
+            ParameterNames.extend(('G'+str(i+1)+'_amp','G'+str(i+1)+'_ω','G'+str(i+1)+'_σ'))
+            self.ParameterString = self.ParameterString + '<p>Gaussian '+str(i+1)+' |&nbsp; Amplitude: ' + str(round(Fit.params['G'+str(i+1)+'_amplitude'].value,4)) + ',&nbsp; Energy: ' + str(round(Fit.params['G'+str(i+1)+'_center'].value,2)) + ' eV,&nbsp; Width: ' + str(round(Fit.params['G'+str(i+1)+'_sigma'].value,3))
+            Parameters[0+Counter] = Fit.params['G'+str(i+1)+'_amplitude'].value
+            Parameters[1+Counter] = Fit.params['G'+str(i+1)+'_center'].value
+            Parameters[2+Counter] = Fit.params['G'+str(i+1)+'_sigma'].value
+            Counter = Counter + 3
+            i += 1
+        i = 0
+        while i < self.NumModels['Voigt'] :
+            ParameterNames.extend(('V'+str(i+1)+'_amp','V'+str(i+1)+'_ω','V'+str(i+1)+'_σ'))
+            self.ParameterString = self.ParameterString + '<p>Voigt '+str(i+1)+' |&nbsp; Amplitude: ' + str(round(Fit.params['V'+str(i+1)+'_amplitude'].value,4)) + ',&nbsp; Energy: ' + str(round(Fit.params['V'+str(i+1)+'_center'].value,2)) + ' eV,&nbsp; Width: ' + str(round(Fit.params['V'+str(i+1)+'_sigma'].value,3))
+            Parameters[0+Counter] = Fit.params['V'+str(i+1)+'_amplitude'].value
+            Parameters[1+Counter] = Fit.params['V'+str(i+1)+'_center'].value
+            Parameters[2+Counter] = Fit.params['V'+str(i+1)+'_sigma'].value
+            Counter = Counter + 3
+            i += 1
+        
+        self.Parameters = Parameters
+        self.ParameterNames = ParameterNames
+        self.FitReport = Fit.fit_report()
+    
+    def Plot(self) :
 
-def Convert2Dataframe(FitParameters) :
-    NumberPeaks = (FitParameters.shape[1]-3)/3
-    Header = list()
-    Header.append(('Delay','B_Intercept','B_Slope'))
-    i = 0
-    while i < NumberPeaks :
-        Header.append(('amp'+str(i+1),'ω'+str(i+1),'σ'+str(i+1)))
-        i+=1
-    Header = [y for x in Header for y in x]
-    FitParameters = df(data=FitParameters,columns=Header)
-    
-    return FitParameters
+        # Plot fits
+        plt.figure(figsize = [6,4])
+        plt.plot(self.x, self.y,'r.', label='data')
+        plt.plot(self.fit_x, self.fit_y, 'k-', label='fit')
+        i = 0
+        while i < self.NumModels['Linear'] :
+            plt.plot(self.fit_x, self.fit_comps['L'+str(i+1)+'_'], 'k--', label='Linear '+str(i+1))
+            i += 1
+        i = 0
+        while i < self.NumModels['Gaussian'] :
+            plt.fill(self.fit_x, self.fit_comps['G'+str(i+1)+'_'], '--', label='Gaussian '+str(i+1), alpha=0.5)
+            i+=1
+        i = 0
+        while i < self.NumModels['Voigt'] :
+            plt.fill(self.fit_x, self.fit_comps['V'+str(i+1)+'_'], '--', label='Voigt '+str(i+1), alpha=0.5)
+            i+=1
+        plt.errorbar(self.x, self.y, yerr=self.err, fmt='o')
+#         plt.plot((287.3,287.3),(0,max(self.y)),'k:',label='CO Gas Phase')
+        plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
+        plt.xlabel('Photon Energy (eV)'), plt.ylabel('Intensity (au)')
+        plt.title('Delay: ' + str(self.Delay) + ' fs')
+        
+        ShowPlot = widgets.Output()
+        with ShowPlot :
+            plt.show()
 
-def Fits(x,y,err,Delay,Fit) :
-    fit_x_delta = 0.01
-    fit_len = int((max(x)-min(x))/fit_x_delta + 1)
-    fit_x = np.zeros((fit_len))
-    i = 0
-    while i < fit_len :
-        fit_x[i] = min(x) + i * fit_x_delta
-        i += 1
-    fit_comps = Fit.eval_components(Fit.params, x=fit_x)
-    fit_y = Fit.eval(x=fit_x)
-    NumberPeaks = len(fit_comps) - 1
-    
-    # Plot fits
-    plt.figure(figsize = [6,4])
-    plt.plot(x, y,'r.', label='data')
-    plt.plot(fit_x, fit_y, 'k-', label='fit')
-    plt.plot(fit_x, fit_comps['B_'], 'k--', label='Baseline')
-    i = 0
-    while i < NumberPeaks :
-        plt.fill(fit_x, fit_comps['G'+str(i+1)+'_'], '--', label='Peak '+str(i+1), alpha=0.5)
-        i+=1
-    plt.errorbar(x, y, yerr=err, fmt='o')
-    plt.plot((287.3,287.3),(0,max(y)),'k:',label='CO Gas Phase')
-    plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
-    plt.xlabel('Photon Energy (eV)'), plt.ylabel('Intensity (au)')
-    plt.title('Delay: ' + str(Delay) + ' fs')
-    
-    # Save parameters
-    FitParameters = np.zeros((int(3+3*NumberPeaks)))
-    FitParameters[0] = Delay
-    string = '<p>Baseline |&nbsp; Intercept: '+ str(round(Fit.params['B_intercept'].value,4)) + ',&nbsp; Slope: ' + str(round(Fit.params['B_slope'].value,4))
-    FitParameters[1] = Fit.params['B_intercept'].value
-    FitParameters[2] = Fit.params['B_slope'].value
-    i = 0
-    while i < NumberPeaks :
-        string = string + '<p>Peak '+str(i+1)+' |&nbsp; Amplitude: ' + str(round(Fit.params['G'+str(i+1)+'_amplitude'].value,4)) + ',&nbsp; Energy: ' + str(round(Fit.params['G'+str(i+1)+'_center'].value,2)) + ' eV,&nbsp; Width: ' + str(round(Fit.params['G'+str(i+1)+'_sigma'].value,3))
-        FitParameters[3+3*i] = Fit.params['G'+str(i+1)+'_amplitude'].value
-        FitParameters[4+3*i] = Fit.params['G'+str(i+1)+'_center'].value
-        FitParameters[5+3*i] = Fit.params['G'+str(i+1)+'_sigma'].value
-        i+=1
-    
-    ShowPlot = widgets.Output()
-    with ShowPlot :
-        plt.show()
-    
-    ShowText = widgets.HTML(
-        value=string,
-        placeholder='',
-        description='',
-    )
-    
-    display(widgets.Box([ShowPlot,ShowText]))
-    
-    return FitParameters, fit_x, fit_y
+        ShowText = widgets.HTML(
+            value=self.ParameterString,
+            placeholder='',
+            description='',
+        )
 
-def PlotAnalysis(Name, FitParameters) :
-    NumberPeaks = (FitParameters.shape[1]-3)/3
+        display(widgets.Box([ShowPlot,ShowText]))
+
+def PlotAnalysis(Name, FitParameters, ParameterNames) :
     cols = [col for col in FitParameters.columns if Name in col]
     i = 0
     while i < len(cols) :
-        plt.plot(FitParameters['Delay'], FitParameters[cols[i]],'.:', label='Peak '+str(i+1))
+        plt.plot(FitParameters['Delay'], FitParameters[cols[i]],'.:', label=cols[i])
         i+=1
     plt.legend(), plt.xlabel('Delay (fs)'), plt.ylabel(Name)
+    plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
     plt.title(Name+' vs Delay')
     plt.show()
 
