@@ -6,11 +6,11 @@ from lmfit.models import GaussianModel, LinearModel, VoigtModel, PolynomialModel
 import AnalysisTools
 
 class Run :
-    
+
     def __init__(self) :
-        
+
         pass
-    
+
     def Parameters(self,Region) :
 
         dic = {
@@ -20,7 +20,7 @@ class Run :
     #         'BackgroundRun': 'None',
             'ROI': (286, 290),
             'NormROI': (285, 286.4),
-            'NumPeaks': 7,
+            'NumPeaks': 5,
             'NumRefPeaks': 1,
             'xOffset': -0.31,
             'Normalize': False,

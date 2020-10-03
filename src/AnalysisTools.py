@@ -163,7 +163,7 @@ class FitTools :
         self.y = y
         self.err = err
         self.Delay = Delay
-        Fit = self.Model.fit(y, Params, x=x, fit_kws={'maxfev': 10000})
+        Fit = self.Model.fit(y, Params, x=x)
         
         fit_x_delta = 0.01
         fit_len = int((max(x)-min(x))/fit_x_delta + 1)
@@ -231,7 +231,7 @@ class FitTools :
             plt.fill(self.fit_x, self.fit_comps['V'+str(i+1)+'_'], '--', label='Voigt '+str(i+1), alpha=0.5)
             i+=1
         plt.errorbar(self.x, self.y, yerr=self.err, fmt='o')
-#         plt.plot((287.3,287.3),(0,max(self.y)),'k:',label='CO Gas Phase')
+        plt.plot((287.42,287.42),(0,max(self.y)),'k:',label='CO Gas Phase')
         plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
         plt.xlabel('Photon Energy (eV)'), plt.ylabel('Intensity (au)')
         plt.title('Delay: ' + str(self.Delay) + ' fs')

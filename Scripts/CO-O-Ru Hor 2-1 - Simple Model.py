@@ -21,7 +21,7 @@ class Run :
             'NormROI': (285, 286.4),
             'xOffset': -0.34,
             'Normalize': False,
-            'ScalingFactor': 1,
+            'ScalingFactor': 0.62,
         }
 
         if Region == 'Pi Star' :
@@ -95,7 +95,7 @@ class Run :
                 Params[Name+'_intercept'].vary = True
                 Params[Name+'_slope'].value = -0.000555426
                 Params[Name+'_slope'].vary = True
-                Name = 'G1'
+                Name = 'G1'     # Unpumped
                 Params[Name+'_amplitude'].value = 0.02
                 Params[Name+'_amplitude'].min = 0
                 Params[Name+'_center'].value = 288.01
@@ -104,7 +104,7 @@ class Run :
                 Params[Name+'_sigma'].value = 0.415
                 Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 2 :
-                    Name = 'G2'
+                    Name = 'G2'     # Gas phase
                     Params[Name+'_amplitude'].value = 0.01
                     Params[Name+'_amplitude'].vary = True
                     Params[Name+'_amplitude'].min = 0
@@ -114,21 +114,30 @@ class Run :
                     Params[Name+'_sigma'].min = 0.1
                     Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 3 :
-                    Name = 'G3'
+                    Name = 'G3'     # Gas phase
+                    Params[Name+'_amplitude'].set(expr='G2_amplitude*1.18/4.1')
                     Params[Name+'_amplitude'].min = 0
                     Params[Name+'_amplitude'].vary = True
-                    Params[Name+'_center'].value = 287.25
-                    Params[Name+'_center'].max = 287.3
-                    # Params[Name+'_center'].min = 287
+                    Params[Name+'_center'].set(expr='G2_center+0.256')
                     Params[Name+'_center'].vary = False
-                    Params[Name+'_sigma'].value = 0.35
+                    Params[Name+'_sigma'].value = 0.12
+                    Params[Name+'_sigma'].min = 0.1
                     Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 4 :
-                    Name = 'G4'
+                    Name = 'G4'     # Highly coordinated
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_amplitude'].vary = True
+                    Params[Name+'_center'].value = 287.28
+                    Params[Name+'_center'].max = 287.3
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.35
+                    Params[Name+'_sigma'].vary = True
+                if NumberPeaks >= 5 :
+                    Name = 'G5'     # Precursor
                     Params[Name+'_amplitude'].value= 0.01
                     Params[Name+'_amplitude'].min = 0
                     Params[Name+'_amplitude'].vary = True
-                    Params[Name+'_center'].value = 287.69
+                    Params[Name+'_center'].value = 287.65
                     Params[Name+'_center'].vary = False
                     Params[Name+'_sigma'].value = 0.1
                     Params[Name+'_sigma'].vary = False

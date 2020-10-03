@@ -6,11 +6,11 @@ from lmfit.models import GaussianModel, LinearModel, VoigtModel, PolynomialModel
 import AnalysisTools
 
 class Run :
-    
+
     def __init__(self) :
-        
+
         pass
-    
+
     def Parameters(self,Region) :
 
         dic = {
@@ -20,11 +20,11 @@ class Run :
     #         'BackgroundRun': 'None',
             'ROI': (286, 290),
             'NormROI': (285, 286.4),
-            'NumPeaks': 8,
+            'NumPeaks': 5,
             'NumRefPeaks': 1,
-            'xOffset': -0.31,
+            'xOffset': -0.6,
             'Normalize': False,
-            'ScalingFactor': 0.62,
+            'ScalingFactor': 0.32,
         }
 
         if Region == 'Middle' :
@@ -77,78 +77,57 @@ class Run :
 
             if Region == 'Pi Star' :
 
-                Params['L1_intercept'].value = 0.02
-                Params['L1_intercept'].vary = False
-                Params['L1_slope'].value = 0
-                Params['L1_slope'].vary = False
-                Params['G1_amplitude'].value = 0.02
-                Params['G1_amplitude'].min = 0
-                Params['G1_center'].value = 288.01
-                Params['G1_center'].min = 287.92
-                Params['G1_center'].vary = True
-                Params['G1_sigma'].value = 0.415
-                Params['G1_sigma'].vary = True
+                Name = 'L1'
+                Params[Name+'_intercept'].value = 0
+                Params[Name+'_intercept'].vary = False
+                Params[Name+'_slope'].value = 0
+                Params[Name+'_slope'].vary = False
+                Name = 'G1'     # Unpumped
+                Params[Name+'_amplitude'].value = 0.02
+                Params[Name+'_amplitude'].min = 0
+                Params[Name+'_center'].value = 288.01
+                Params[Name+'_center'].min = 287.92
+                Params[Name+'_center'].vary = True
+                Params[Name+'_sigma'].value = 0.69
+                Params[Name+'_sigma'].vary = True
                 if NumberPeaks >= 2 :
-                    Params['G2_amplitude'].value = 0.01
-                    Params['G2_amplitude'].vary = True
-                    Params['G2_amplitude'].min = 0
-                    Params['G2_center'].value = 287.42
-                    Params['G2_center'].vary = False
-                    Params['G2_sigma'].value = Vibrational_Sigma
-                    Params['G2_sigma'].min = 0.1
-                    Params['G2_sigma'].vary = False
+                    Name = 'G2'     # Gas phase
+                    Params[Name+'_amplitude'].value = 0.01
+                    Params[Name+'_amplitude'].vary = True
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_center'].value = 287.42
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.12
+                    Params[Name+'_sigma'].min = 0.1
+                    Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 3 :
-                    Params['G3_amplitude'].set(expr='G2_amplitude*1.18/4.1')
-                    Params['G3_amplitude'].min = 0
-                    Params['G3_amplitude'].vary = True
-                    Params['G3_center'].set(expr='G2_center+0.256')
-                    Params['G3_center'].vary = False
-                    Params['G3_sigma'].value = Vibrational_Sigma
-                    Params['G3_sigma'].min = 0.1
-                    Params['G3_sigma'].vary = False
+                    Name = 'G3'     # Gas phase
+                    Params[Name+'_amplitude'].set(expr='G2_amplitude*1.18/4.1')
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_amplitude'].vary = True
+                    Params[Name+'_center'].set(expr='G2_center+0.256')
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.12
+                    Params[Name+'_sigma'].min = 0.1
+                    Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 4 :
-                    Params['G4_amplitude'].set(expr='G2_amplitude*0.21/4.1')
-                    Params['G4_amplitude'].vary = True
-                    Params['G4_amplitude'].min = 0
-                    Params['G4_center'].set(expr='G2_center+2*0.256')
-                    Params['G4_center'].vary = False
-                    Params['G4_sigma'].value = Vibrational_Sigma
-                    Params['G4_sigma'].min = 0.1
-                    Params['G4_sigma'].vary = False
+                    Name = 'G4'     # Highly coordinated
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_amplitude'].vary = True
+                    Params[Name+'_center'].value = 287.28
+                    Params[Name+'_center'].max = 287.3
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.4
+                    Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 5 :
-    #                 Params['G5_amplitude'].set(expr='G2_amplitude*0.381932549')
-                    Params['G5_amplitude'].min = 0
-                    Params['G5_amplitude'].vary = True
-                    Params['G5_center'].set(expr='G2_center-0.256')
-                    Params['G5_center'].vary = False
-                    Params['G5_sigma'].value = Vibrational_Sigma
-                    Params['G5_sigma'].vary = False
-                if NumberPeaks >= 6 :
-                    Params['G6_amplitude'].set(expr='G5_amplitude/1.8')
-                    Params['G6_amplitude'].min = 0
-    #                 Params['G6_amplitude'].vary = True
-                    Params['G6_center'].set(expr='G2_center-2*0.256')
-                    Params['G6_center'].vary = False
-                    Params['G6_sigma'].value = Vibrational_Sigma
-                    Params['G6_sigma'].vary = False
-                if NumberPeaks >= 7 :
-                    Params['G7_amplitude'].value= 0.01
-                    Params['G7_amplitude'].min = 0
-                    Params['G7_amplitude'].vary = True
-                    Params['G7_center'].value = 287.65
-                    Params['G7_center'].vary = False
-                    Params['G7_sigma'].value = 0.1
-                    Params['G7_sigma'].vary = False
-                if NumberPeaks >= 8 :
-                    Params['G8_amplitude'].value = 1
-                    Params['G8_amplitude'].min = 0
-                    Params['G8_amplitude'].vary = True
-                    Params['G8_center'].value = 288.13
-                    Params['G8_center'].min = 288.05
-                    Params['G8_center'].vary = True
-                    Params['G8_sigma'].value = 0.576
-                    Params['G8_sigma'].value = 0.5
-                    Params['G8_sigma'].vary = False
+                    Name = 'G5'     # Precursor
+                    Params[Name+'_amplitude'].value= 0.01
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_amplitude'].vary = True
+                    Params[Name+'_center'].value = 287.65
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.1
+                    Params[Name+'_sigma'].vary = False
 
                 # Reference delay
                 if NumRefPeaks >= 1 :
@@ -179,6 +158,7 @@ class Run :
                         Params['G1_amplitude'].value = FitParameters[0,3]
                         Params['G1_center'].value = FitParameters[0,4]
                         Params['G1_sigma'].value = FitParameters[0,5]
+                        Params['G1_sigma'].vary = False
                         Shift = 0
                         if Delay[i] > 100 :
                             Shift = -0.045
@@ -189,10 +169,6 @@ class Run :
     #                     if Delay[i] > 900 :
     #                         Shift = -0.21
                         Params['G1_center'].value = FitParameters[0,4] + Shift
-                        if NumRefPeaks >= 2 :
-                            Params['G8_amplitude'].set(expr='G1_amplitude * '+str(FitParameters[0,24]/FitParameters[0,3]))
-                            Params['G8_center'].set(expr='G1_center + '+str(FitParameters[0,25]-FitParameters[0,4]))
-                            Params['G8_sigma'].value = FitParameters[0,26]
 
             if Region == 'Middle' :
 
