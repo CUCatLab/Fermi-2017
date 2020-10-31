@@ -14,19 +14,35 @@ class Run :
     def Parameters(self,Region) :
 
         dic = {
-            'FolderPath': '../../Binned/BT1/',
-            'Runs': 'XAS_024_027',
-            'BackgroundRun': 'XAS_099_099_bin.h5',
+            'FolderPath': '../../Binned/BT2/',
+            'Runs': 'XAS_014_014',
+            'BackgroundRun': 'XAS_099_099_E50.h5',
     #         'BackgroundRun': 'None',
-            'ROI': (286, 290),
             'NormROI': (285, 286.4),
-            'NumPeaks': 5,
-            'NumRefPeaks': 1,
-            'xOffset': -0,
+            'xOffset': -0.34,
             'Normalize': False,
-            'ScaleTo': 'Data',
-            'ScalingFactor': 0.32,
+            'ScalingFactor': 0.62,
+            'ScaleTo' : "Data", #Data or Background
+            
         }
+
+        if Region == 'Pi Star' :
+            dic['ROI'] = (286.3, 290)
+            dic['NumPeaks'] = 4
+            dic['NumRefPeaks'] = 1
+            dic['TrendDelayRange'] = (-2000,2000)
+            dic['TrendFits'] = {
+                            'G1_amp': {'a': -0.01, 'b': 0.003, 't0': 0, 'sigma': 600},
+                            'G2_amp': {'a': 0.009, 'b': 0, 't0': 500, 'sigma': 800},
+                            'G3_amp': {'a': 0.006, 'b': 0, 't0': 300, 'sigma': 300},
+                            'G4_amp': {'a': 0.003, 'b': 0, 't0': 700, 'sigma': 900},
+                            }
+            dic['TrendData'] = {
+                            'Low': {'Range': (286.6,287.0), 'a': 0.002, 'b': 0.003, 't0': 0, 'sigma': 237},
+                            'Vibrational1': {'Range': (287.4,287.5), 'a': 0.011, 'b': 0.0004, 't0': 260, 'sigma': 990},
+                            'Vibrational2': {'Range': (287.6,287.7), 'a': 0.011, 'b': 0.0004, 't0': 260, 'sigma': 990},
+                            'Negative': {'Range': (288.2,289), 'a': -0.004, 'b': 0.0076, 't0': 315, 'sigma': 415},
+                            }
 
         if Region == 'Middle' :
             dic['ROI'] = (289,291.8)
@@ -74,23 +90,21 @@ class Run :
                                 0.256  eV  vibrational spacing
             """
 
-            Vibrational_Sigma = 0.1
-
             if Region == 'Pi Star' :
 
                 Name = 'L1'
-                Params[Name+'_intercept'].value = 0
-                Params[Name+'_intercept'].vary = False
-                Params[Name+'_slope'].value = 0
-                Params[Name+'_slope'].vary = False
+                Params[Name+'_intercept'].value = 0.159991829
+                Params[Name+'_intercept'].vary = True
+                Params[Name+'_slope'].value = -0.000555426
+                Params[Name+'_slope'].vary = True
                 Name = 'G1'     # Unpumped
                 Params[Name+'_amplitude'].value = 0.02
                 Params[Name+'_amplitude'].min = 0
                 Params[Name+'_center'].value = 288.01
                 Params[Name+'_center'].min = 287.92
                 Params[Name+'_center'].vary = True
-                Params[Name+'_sigma'].value = 0.69
-                Params[Name+'_sigma'].vary = True
+                Params[Name+'_sigma'].value = 0.415
+                Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 2 :
                     Name = 'G2'     # Gas phase
                     Params[Name+'_amplitude'].value = 0.01
@@ -118,8 +132,8 @@ class Run :
                     Params[Name+'_center'].value = 287.28
                     Params[Name+'_center'].max = 287.3
                     Params[Name+'_center'].vary = False
-                    Params[Name+'_sigma'].value = 0.4
-                    Params[Name+'_sigma'].vary = False
+                    Params[Name+'_sigma'].value = 0.35
+                    Params[Name+'_sigma'].vary = True
                 if NumberPeaks >= 5 :
                     Name = 'G5'     # Precursor
                     Params[Name+'_amplitude'].value= 0.01
@@ -159,7 +173,6 @@ class Run :
                         Params['G1_amplitude'].value = FitParameters[0,3]
                         Params['G1_center'].value = FitParameters[0,4]
                         Params['G1_sigma'].value = FitParameters[0,5]
-                        Params['G1_sigma'].vary = False
                         Shift = 0
                         if Delay[i] > 100 :
                             Shift = -0.045

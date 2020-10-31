@@ -14,19 +14,35 @@ class Run :
     def Parameters(self,Region) :
 
         dic = {
-            'FolderPath': '../../Binned/BT1/',
-            'Runs': 'XAS_024_027',
-            'BackgroundRun': 'XAS_099_099_bin.h5',
+            'FolderPath': '../../Binned/BT2/',
+            'Runs': 'XAS_018_020',
+            #'BackgroundRun': 'XAS_099_099_E50.h5',
+            'BackgroundRun': 'XAS_099_099_D50_E50.h5',
     #         'BackgroundRun': 'None',
-            'ROI': (286, 290),
             'NormROI': (285, 286.4),
-            'NumPeaks': 5,
-            'NumRefPeaks': 1,
-            'xOffset': -0,
+            'xOffset': -0.31,
             'Normalize': False,
-            'ScaleTo': 'Data',
-            'ScalingFactor': 0.32,
+            'ScalingFactor': 1,
         }
+
+        if Region == 'Pi Star' :
+            dic['ROI'] = (286.3, 290)
+            dic['ScaleTo'] = "Data" #Data or Background
+            dic['NumPeaks'] = 6
+            dic['NumRefPeaks'] = 2
+            dic['TrendDelayRange'] = (-2000,2000)
+            dic['TrendFits'] = {
+                            'G1_amp': {'a': -0.01, 'b': 0.003, 't0': 0, 'sigma': 600},
+                            'G2_amp': {'a': 0.009, 'b': 0, 't0': 500, 'sigma': 800},
+                            'G3_amp': {'a': 0.006, 'b': 0, 't0': 300, 'sigma': 300},
+                            'G4_amp': {'a': 0.003, 'b': 0, 't0': 700, 'sigma': 900},
+                            }
+            dic['TrendData'] = {
+                            'Low': {'Range': (286.6,287.0), 'a': 0.002, 'b': 0.003, 't0': 0, 'sigma': 237},
+                            'Vibrational1': {'Range': (287.4,287.5), 'a': 0.011, 'b': 0.0004, 't0': 260, 'sigma': 990},
+                            'Vibrational2': {'Range': (287.6,287.7), 'a': 0.011, 'b': 0.0004, 't0': 260, 'sigma': 990},
+                            'Negative': {'Range': (288.2,289), 'a': -0.004, 'b': 0.0076, 't0': 315, 'sigma': 415},
+                            }
 
         if Region == 'Middle' :
             dic['ROI'] = (289,291.8)
@@ -74,25 +90,25 @@ class Run :
                                 0.256  eV  vibrational spacing
             """
 
-            Vibrational_Sigma = 0.1
-
             if Region == 'Pi Star' :
 
                 Name = 'L1'
-                Params[Name+'_intercept'].value = 0
-                Params[Name+'_intercept'].vary = False
-                Params[Name+'_slope'].value = 0
-                Params[Name+'_slope'].vary = False
-                Name = 'G1'     # Unpumped
+                Params[Name+'_intercept'].value = 0.24#0.2341 #0.159991829
+                Params[Name+'_intercept'].vary = True
+                Params[Name+'_slope'].value = -0.001 #-0.0008 #-0.000555426
+                Params[Name+'_slope'].vary = True
+                Name = 'G1'
                 Params[Name+'_amplitude'].value = 0.02
                 Params[Name+'_amplitude'].min = 0
-                Params[Name+'_center'].value = 288.01
-                Params[Name+'_center'].min = 287.92
+                Params[Name+'_center'].value = 288.07
+                Params[Name+'_center'].min = 287.87
+                Params[Name+'_center'].max = 288.08
                 Params[Name+'_center'].vary = True
-                Params[Name+'_sigma'].value = 0.69
-                Params[Name+'_sigma'].vary = True
+                Params[Name+'_sigma'].value = 0.5 #0.356 #0.415
+                Params[Name+'_sigma'].max = 0.6
+                Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 2 :
-                    Name = 'G2'     # Gas phase
+                    Name = 'G2'
                     Params[Name+'_amplitude'].value = 0.01
                     Params[Name+'_amplitude'].vary = True
                     Params[Name+'_amplitude'].min = 0
@@ -102,33 +118,56 @@ class Run :
                     Params[Name+'_sigma'].min = 0.1
                     Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 3 :
-                    Name = 'G3'     # Gas phase
-                    Params[Name+'_amplitude'].set(expr='G2_amplitude*1.18/4.1')
+                    Name = 'G3'
                     Params[Name+'_amplitude'].min = 0
                     Params[Name+'_amplitude'].vary = True
-                    Params[Name+'_center'].set(expr='G2_center+0.256')
+                    Params[Name+'_center'].value = 287.28 #287.25
+                    Params[Name+'_center'].max = 287.3
+                    # Params[Name+'_center'].min = 287
                     Params[Name+'_center'].vary = False
-                    Params[Name+'_sigma'].value = 0.12
-                    Params[Name+'_sigma'].min = 0.1
+                    Params[Name+'_sigma'].value = 0.304 #0.35
                     Params[Name+'_sigma'].vary = False
                 if NumberPeaks >= 4 :
-                    Name = 'G4'     # Highly coordinated
-                    Params[Name+'_amplitude'].min = 0
-                    Params[Name+'_amplitude'].vary = True
-                    Params[Name+'_center'].value = 287.28
-                    Params[Name+'_center'].max = 287.3
-                    Params[Name+'_center'].vary = False
-                    Params[Name+'_sigma'].value = 0.4
-                    Params[Name+'_sigma'].vary = False
-                if NumberPeaks >= 5 :
-                    Name = 'G5'     # Precursor
+                    Name = 'G4'
                     Params[Name+'_amplitude'].value= 0.01
                     Params[Name+'_amplitude'].min = 0
                     Params[Name+'_amplitude'].vary = True
-                    Params[Name+'_center'].value = 287.65
+                    Params[Name+'_center'].value = 287.67
                     Params[Name+'_center'].vary = False
                     Params[Name+'_sigma'].value = 0.1
                     Params[Name+'_sigma'].vary = False
+                if NumberPeaks >= 5 :
+                    Name = 'G5'
+                    Params[Name+'_amplitude'].set(expr='G2_amplitude*0.288')
+                    Params[Name+'_amplitude'].min = 0
+                    Params[Name+'_amplitude'].vary = False
+                    #Params[Name+'_center'].value = 287.42+0.256
+                    Params[Name+'_center'].set(expr='G2_center+0.256')
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.12
+                    Params[Name+'_sigma'].vary = False
+                if NumberPeaks >= 6 :
+                    Name = 'G6'
+                    Params[Name+'_amplitude'].set(expr='G1_amplitude*0.281')
+                    #Params[Name+'_amplitude'].min = 0
+                    #Params[Name+'_center'].value = 288.07
+                    Params[Name+'_center'].set(expr='G1_center+0.01')
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.166
+                    Params[Name+'_sigma'].max = 0.5
+                    Params[Name+'_sigma'].vary = False
+                if NumberPeaks >= 7 :
+                    Name = 'G7'
+                    Params[Name+'_amplitude'].set(expr='G1_amplitude*0.281')
+                    #Params[Name+'_amplitude'].min = 0
+                    #Params[Name+'_center'].value = 288.07
+                    Params[Name+'_center'].set(expr='G1_center+0.01')
+                    Params[Name+'_center'].vary = False
+                    Params[Name+'_sigma'].value = 0.166
+                    Params[Name+'_sigma'].max = 0.5
+                    Params[Name+'_sigma'].vary = False
+
+
 
                 # Reference delay
                 if NumRefPeaks >= 1 :
@@ -159,7 +198,6 @@ class Run :
                         Params['G1_amplitude'].value = FitParameters[0,3]
                         Params['G1_center'].value = FitParameters[0,4]
                         Params['G1_sigma'].value = FitParameters[0,5]
-                        Params['G1_sigma'].vary = False
                         Shift = 0
                         if Delay[i] > 100 :
                             Shift = -0.045
@@ -171,6 +209,19 @@ class Run :
     #                         Shift = -0.21
                         Params['G1_center'].value = FitParameters[0,4] + Shift
 
+                ###
+                if NumRefPeaks >= 2 :
+                    if i == 0:
+                        Params['G6_amplitude'].vary = True
+                        Params['G6_sigma'].vary = True
+                    #else:
+                        #Params['G7_amplitude'].set(expr='G1_amplitude * '+str(FitParameters[0,6]/FitParameters[0,3]))
+                        #Params['G7_center'].value = FitParameters[0,7]
+                        #Params['G7_center'].vary = False
+                        #Params['G7_sigma'].value = FitParameters[0,8]
+                        #Params['G7_sigma'].vary = False
+
+                ###
             if Region == 'Middle' :
 
                 Params['L1_slope'].value = -0.003129523
@@ -222,3 +273,4 @@ class Run :
         self.FitParameters = FitParameters
         self.Fit_Energy = Fit_Energy
         self.Fit_Signal = Fit_Signal
+        return fit, FitParameters, Fit_Energy, Fit_Signal
