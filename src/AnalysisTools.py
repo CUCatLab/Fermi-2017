@@ -1,60 +1,51 @@
+import os
+from os import listdir
+from os.path import isfile, join
+import sys
 import h5py
 import numpy as np
 from pandas import DataFrame as df
 import matplotlib.pyplot as plt
-import ipywidgets as widgets
-from lmfit.models import GaussianModel, LinearModel, VoigtModel, PolynomialModel
+import cmath
+import igor.igorpy as igor
 import re
-from os import listdir
-from os.path import isfile, join, dirname
+import yaml
+import struct
+from lmfit import model, Model
+from lmfit.models import GaussianModel, SkewedGaussianModel, VoigtModel, ConstantModel, LinearModel, QuadraticModel, PolynomialModel
 
-# Plotly settings
-import plotly.graph_objects as go
-import plotly.io as pio
-pio.renderers.default = 'notebook+plotly_mimetype'
-pio.templates.default = 'simple_white'
-pio.templates[pio.templates.default].layout.update(dict(
-    title_y = 0.95,
-    title_x = 0.5,
-    title_xanchor = 'center',
-    title_yanchor = 'top',
-    legend_x = 0,
-    legend_y = 1,
-    legend_traceorder = "normal",
-    legend_bgcolor='rgba(0,0,0,0)',
-    margin=go.layout.Margin(
-        l=0, #left margin
-        r=0, #right margin
-        b=0, #bottom margin
-        t=50, #top margin
-        )
-))
+##### Data Tools #####
 
 class DataTools :
     
-    def __init___(self) :
+    def __init__(self) :
         
-        pass
+        self.ParametersFolder = os.getcwd()+'/Parameters'
+        self.FitsFolder = os.getcwd()+'/Fits'
+        self.FiguresFolder = os.getcwd()+'/Figures'
     
     def FileList(self,FolderPath,Filter) :
+        
         FileList = [f for f in listdir(FolderPath) if isfile(join(FolderPath, f))]
-        FileList = [k for k in FileList if Filter in k]
+        for i in range(len(Filter)):
+            FileList = [k for k in FileList if Filter[i] in k]
+        for i in range(len(FileList)):
+            FileList[i] = FileList[i].replace('.yaml','')
+        
         return FileList
-
-    def ImportData(self,FolderPath,FileName) :
-
+    
+    def LoadData(self,DataFile,par) :
+        
         # Check file
-        if FileName == 'None' :
-            raise HaltException('Please select file')
-        f = h5py.File(FolderPath + '/' + FileName, 'r')
+        f = h5py.File(par['FolderPath'] + '/' + DataFile, 'r')
         if not 'BinnedData/xas_bins' in f :
-            raise HaltException('Energy data missing')
+            raise Exception('Energy data missing')
         if not 'BinnedData/delay_bins' in f :
-            raise HaltException('Delay data missing')
+            raise Exception('Delay data missing')
         if not 'BinnedData/XAS_2dmatrix' in f :
-            raise HaltException('Intensity data missing')
+            raise Exception('Intensity data missing')
         if not 'BinnedData/XAS_2dmatrix_err' in f :
-            raise HaltException('Error bar data missing')
+            raise Exception('Error bar data missing')
 
         # Load data
         Energy = f['BinnedData/xas_bins'][...]
@@ -64,220 +55,236 @@ class DataTools :
 
         f.close()
         
-        return Energy, Signal, Delay, ErrorBars
-
-    def Normalize(self,x,y,Min,Max) :
-        Min_Index = (np.abs(x - Min)).argmin()
-        Max_Index = (np.abs(x - Max)).argmin()
-        if len(y.shape) == 1 :
-            Norm = np.nanmean(y[Min_Index:Max_Index])
-        if len(y.shape) == 2 :
-            Norm = np.nanmean(np.transpose(y)[Min_Index:Max_Index])
-        y = y / Norm - 1
-        return x, y
-
-    def TrimData(self,Energy,Signal,Delay,ErrorBars,Min,Max) :
-
-        # Trim data
-        Min_Index = (np.abs(Energy - Min)).argmin()
-        Max_Index = (np.abs(Energy - Max)).argmin()
-        Energy = Energy[Min_Index:Max_Index]
-        Signal = np.transpose(Signal)
-        Signal = Signal[Min_Index:Max_Index]
-        Signal = np.transpose(Signal)
-        ErrorBars = np.transpose(ErrorBars)
-        ErrorBars = ErrorBars[Min_Index:Max_Index]
-        ErrorBars = np.transpose(ErrorBars)
-
+        # Energy offset
+        Energy = Energy + par['xOffset']
+        
+        # Create data frame
+        Data =  df(data=np.transpose(Signal),columns=Delay)
+        Data.index = Energy
+        ErrorBars =  df(data=np.transpose(ErrorBars),columns=Delay,index=Energy)
+        
         # Remove empty data sets
-        remove = np.array([],dtype=int)
-        i = 0
-        while i < len(Signal) :
-            if np.count_nonzero(np.isnan(Signal[i])) == len(Signal[i]) :
-                remove = np.append(remove, i)
-            i += 1
-        Signal = np.delete(Signal,remove,axis=0)
-        ErrorBars = np.delete(ErrorBars,remove,axis=0)
-        Delay = np.delete(Delay,remove)
+        Data = Data.dropna(axis=1, how='all')
+        ErrorBars = ErrorBars.dropna(axis=1, how='all')
+        
+        return Data, ErrorBars
+    
+    def TrimData(self,Data,xRange) :
+        
+        # Trim data
+        Mask = np.all([Data.index.values>min(xRange),Data.index.values<max(xRange)],axis=0)
+        Data = Data[Mask]
+        
+        return Data
 
-        return Energy, Signal, Delay, ErrorBars
+    def SubtractBackground(self,Data,ErrorBars,Background,Background_ErrorBars,par,ShowPlot=True) :
+        
+        Min = max(min(Data.index),min(Background.index))
+        Max = min(max(Data.index),max(Background.index))
 
-    def SubtractBackground(self,Energy,Signal,Background_Energy,Background,Min,Max) :
-        Min_Index = (np.abs(Background_Energy - Min)).argmin()
-        Max_Index = (np.abs(Background_Energy - Max)).argmin()
-        Background = np.transpose(Background)
-        Background = Background[Min_Index:Max_Index]
-        Background = np.transpose(Background)
-        Background_Energy = Background_Energy[Min_Index:Max_Index]
-        Background_Do = True
-        if not np.array_equal(Background_Energy, Energy) :
+        Data = self.TrimData(Data,[Min,Max])
+        ErrorBars = self.TrimData(ErrorBars,[Min,Max])
+        Background = self.TrimData(Background,[Min,Max])
+        Background_ErrorBars = self.TrimData(Background_ErrorBars,[Min,Max])
+        
+        if np.array_equal(Data.index,Background.index) :
+            Data = Data.subtract(Background.values)
+            print('Background Successfully subtracted from data')
+            ErrorBars = ErrorBars**2
+            ErrorBars = ErrorBars.add((Background_ErrorBars**2).values)
+            ErrorBars = ErrorBars**0.5
+            
+        else :
             print('Warning: Energy axes do not match')
             print('Warning: Background subtraction cancelled')
-            Background_Do = False
-        if Background_Do :
-            Signal = Signal - Background
-            print('Background Successfully subtracted from data')
+        
+        if ShowPlot :
+            
+            plt.errorbar(Background.index, Background.values, yerr=Background_ErrorBars.iloc[:,0], fmt='o', color='black')
+            plt.xlabel('Energy (eV)'), plt.ylabel('Intensity (au)')
+            plt.title('Background: '+par['Background'])
+            plt.show()
 
-        return Signal
+        return Data, ErrorBars
+
+##### Fit Tools #####
 
 class FitTools :
     
-    def __init__(self,ModelString) :
+    def __init__(self,Data,ErrorBars,par,Name='') :
         
-        self.NumModels = {}
-        self.NumModels['Total'] = len(ModelString)
-        self.NumModels['Linear'] = len(re.findall('L', ModelString))
-        self.NumModels['Gaussian'] = len(re.findall('G', ModelString))
-        self.NumModels['Voigt'] = len(re.findall('V', ModelString))
-        if self.NumModels['Total'] != self.NumModels['Linear'] + self.NumModels['Gaussian'] + self.NumModels['Voigt'] :
-            print('Warning: Number of total functions does not equal number of summed functions')
-        ModelCounter= 0
-        i = 0
-        while i < self.NumModels['Linear'] :
-            if ModelCounter == 0 :
-                self.Model = LinearModel(prefix='L'+str(i+1)+'_')
+        self.Data = Data
+        self.ErrorBars = ErrorBars
+        self.par = par
+        self.Name = Name
+        
+    def SetModel(self) :
+        
+        par = self.par
+        Data = self.Data
+        
+        ModelString = list()
+        for Peak in par['Models'] :
+            ModelString.append((Peak,par['Models'][Peak]['model']))
+        
+        for Model in ModelString :
+            try :
+                FitModel
+            except :
+                if Model[1] == 'Constant' :
+                    FitModel = ConstantModel(prefix=Model[0]+'_')
+                if Model[1] == 'Linear' :
+                    FitModel = LinearModel(prefix=Model[0]+'_')
+                if Model[1] == 'Gaussian' :
+                    FitModel = GaussianModel(prefix=Model[0]+'_')
+                if Model[1] == 'SkewedGaussian' :
+                    FitModel = SkewedGaussianModel(prefix=Model[0]+'_')
+                if Model[1] == 'Voigt' :
+                    FitModel = VoigtModel(prefix=Model[0]+'_')
             else :
-                self.Model = self.Model + LinearModel(prefix='L'+str(i+1)+'_')
-            ModelCounter = ModelCounter + 1
-            i += 1
-        i = 0
-        while i < self.NumModels['Gaussian'] :
-            if ModelCounter == 0 :
-                self.Model = GaussianModel(prefix='G'+str(i+1)+'_')
-            else :
-                self.Model = self.Model + GaussianModel(prefix='G'+str(i+1)+'_')
-            ModelCounter = ModelCounter + 1
-            i += 1
-        i = 0
-        while i < self.NumModels['Voigt'] :
-            if ModelCounter == 0 :
-                self.Model = VoigtModel(prefix='V'+str(i+1)+'_')
-            else :
-                self.Model = self.Model + VoigtModel(prefix='V'+str(i+1)+'_')
-            ModelCounter = ModelCounter + 1
-            i += 1
+                if Model[1] == 'Constant' :
+                    FitModel = FitModel + ConstantModel(prefix=Model[0]+'_')
+                if Model[1] == 'Linear' :
+                    FitModel = FitModel + LinearModel(prefix=Model[0]+'_')
+                if Model[1] == 'Gaussian' :
+                    FitModel = FitModel + GaussianModel(prefix=Model[0]+'_')
+                if Model[1] == 'SkewedGaussian' :
+                    FitModel = FitModel + SkewedGaussianModel(prefix=Model[0]+'_')
+                if Model[1] == 'Voigt' :
+                    FitModel = FitModel + VoigtModel(prefix=Model[0]+'_')
+        
+        ModelParameters = FitModel.make_params()
+        FitsParameters = df(index=ModelParameters.keys(),columns=Data.columns.values)
+        
+        self.FitModel = FitModel
+        self.ModelParameters = ModelParameters
+        self.FitsParameters = FitsParameters
     
-    def Fit(self,x,y,err,Delay,Params) :
+    def SetParameters(self, Value=None) :
         
-        self.x = x
-        self.y = y
-        self.err = err
-        self.Delay = Delay
-        Fit = self.Model.fit(y, Params, x=x)
+        par = self.par
+        ModelParameters = self.ModelParameters
+        FitsParameters = self.FitsParameters
         
-        fit_x_delta = 0.01
-        fit_len = int((max(x)-min(x))/fit_x_delta + 1)
-        self.fit_x = np.zeros((fit_len))
-        i = 0
-        while i < fit_len :
-            self.fit_x[i] = min(x) + i * fit_x_delta
-            i += 1
-        self.fit_comps = Fit.eval_components(Fit.params, x=self.fit_x)
-        self.fit_y = Fit.eval(x=self.fit_x)
-        
-        # Save parameters
-        Parameters = np.zeros((1+2*self.NumModels['Linear']+3*self.NumModels['Gaussian']+3*self.NumModels['Voigt']))
-        ParameterNames = list(('Delay',))
-        Parameters[0] = Delay
-        self.ParameterString = ''
-        Counter = 1
-        i = 0
-        while i < self.NumModels['Linear'] :
-            ParameterNames.extend(('L'+str(i+1)+'_intercept','L'+str(i+1)+'_slope'))
-            self.ParameterString = self.ParameterString + '<p>Linear '+str(i+1)+' |&nbsp; Intercept: '+ str(round(Fit.params['L'+str(i+1)+'_intercept'].value,4)) + ',&nbsp; Slope: ' + str(round(Fit.params['L'+str(i+1)+'_slope'].value,4))
-            Parameters[0+Counter] = Fit.params['L'+str(i+1)+'_intercept'].value
-            Parameters[1+Counter] = Fit.params['L'+str(i+1)+'_slope'].value
-            Counter = Counter + 2
-            i += 1
-        i = 0
-        while i < self.NumModels['Gaussian'] :
-            ParameterNames.extend(('G'+str(i+1)+'_amp','G'+str(i+1)+'_ω','G'+str(i+1)+'_σ'))
-            self.ParameterString = self.ParameterString + '<p>Gaussian '+str(i+1)+' |&nbsp; Amplitude: ' + str(round(Fit.params['G'+str(i+1)+'_amplitude'].value,4)) + ',&nbsp; Energy: ' + str(round(Fit.params['G'+str(i+1)+'_center'].value,2)) + ' eV,&nbsp; Width: ' + str(round(Fit.params['G'+str(i+1)+'_sigma'].value,3))
-            Parameters[0+Counter] = Fit.params['G'+str(i+1)+'_amplitude'].value
-            Parameters[1+Counter] = Fit.params['G'+str(i+1)+'_center'].value
-            Parameters[2+Counter] = Fit.params['G'+str(i+1)+'_sigma'].value
-            Counter = Counter + 3
-            i += 1
-        i = 0
-        while i < self.NumModels['Voigt'] :
-            ParameterNames.extend(('V'+str(i+1)+'_amp','V'+str(i+1)+'_ω','V'+str(i+1)+'_σ'))
-            self.ParameterString = self.ParameterString + '<p>Voigt '+str(i+1)+' |&nbsp; Amplitude: ' + str(round(Fit.params['V'+str(i+1)+'_amplitude'].value,4)) + ',&nbsp; Energy: ' + str(round(Fit.params['V'+str(i+1)+'_center'].value,2)) + ' eV,&nbsp; Width: ' + str(round(Fit.params['V'+str(i+1)+'_sigma'].value,3))
-            Parameters[0+Counter] = Fit.params['V'+str(i+1)+'_amplitude'].value
-            Parameters[1+Counter] = Fit.params['V'+str(i+1)+'_center'].value
-            Parameters[2+Counter] = Fit.params['V'+str(i+1)+'_sigma'].value
-            Counter = Counter + 3
-            i += 1
-        
-        self.Parameters = Parameters
-        self.ParameterNames = ParameterNames
-        self.FitReport = Fit.fit_report()
-    
-    def Plot(self) :
+        ParameterList = ['intercept','offset','amplitude','center','sigma']
+        Parameters = {'Standard': par['Models']}
 
-        # Plot fits
-        plt.figure(figsize = [6,4])
-        plt.plot(self.x, self.y,'r.', label='data')
-        plt.plot(self.fit_x, self.fit_y, 'k-', label='fit')
-        i = 0
-        while i < self.NumModels['Linear'] :
-            plt.plot(self.fit_x, self.fit_comps['L'+str(i+1)+'_'], 'k--', label='Linear '+str(i+1))
-            i += 1
-        i = 0
-        while i < self.NumModels['Gaussian'] :
-            plt.fill(self.fit_x, self.fit_comps['G'+str(i+1)+'_'], '--', label='Gaussian '+str(i+1), alpha=0.5)
-            i+=1
-        i = 0
-        while i < self.NumModels['Voigt'] :
-            plt.fill(self.fit_x, self.fit_comps['V'+str(i+1)+'_'], '--', label='Voigt '+str(i+1), alpha=0.5)
-            i+=1
-        plt.errorbar(self.x, self.y, yerr=self.err, fmt='o')
-        plt.plot((287.42,287.42),(0,max(self.y)),'k:',label='CO Gas Phase')
-        plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
-        plt.xlabel('Photon Energy (eV)'), plt.ylabel('Intensity (au)')
-        plt.title('Delay: ' + str(self.Delay) + ' fs')
+        if 'Cases' in par and Value != None:
+            for Case in par['Cases'] :
+                if Value >= min(par['Cases'][Case]['zRange']) and Value <= max(par['Cases'][Case]['zRange']) :
+                    Parameters[Case] = par['Cases'][Case]
+
+        for Dictionary in Parameters :
+            for Peak in Parameters[Dictionary] :
+                for Parameter in Parameters[Dictionary][Peak] :
+                    if Parameter in ParameterList :
+                        for Key in Parameters[Dictionary][Peak][Parameter] :
+                            if Key != 'set' :
+                                exec('ModelParameters["'+Peak+'_'+Parameter+'"].'+Key+'='+str(Parameters[Dictionary][Peak][Parameter][Key]))
+                            else :
+                                exec('ModelParameters["'+Peak+'_'+Parameter+'"].'+Key+str(Parameters[Dictionary][Peak][Parameter][Key]))
+                                    
+        self.ModelParameters = ModelParameters
+    
+    def Fit(self,**kwargs) :
         
-        ShowPlot = widgets.Output()
-        with ShowPlot :
+        for kwarg in kwargs :
+            if kwarg == 'fit_x':
+                fit_x = kwargs[kwarg]
+            if kwarg == 'NumberPoints':
+                NumberPoints = kwargs[kwarg]
+        
+        dt = DataTools()
+        self.SetModel()
+        
+        Data = self.Data
+        Name = self.Name
+        par = self.par
+        ModelParameters = self.ModelParameters
+        FitModel = self.FitModel
+        FitsParameters = self.FitsParameters
+        
+        if 'xRange' in par :
+            Data = dt.TrimData(Data,[par['xRange'][0],par['xRange'][1]])
+        x = Data.index.values
+        try:
+            fit_x
+        except :
+            try :
+                NumberPoints
+            except :
+                fit_x = x
+            else :
+                fit_x = np.zeros((NumberPoints))
+                for i in range(NumberPoints) :
+                    fit_x[i] = min(x) + i * (max(x) - min(x)) / (NumberPoints - 1)
+        
+        Fits = df(index=fit_x,columns=Data.columns.values)
+        
+        FitsResults = list()
+        FitsComponents = list()
+        
+        for idx,Column in enumerate(Data) :
+            
+            self.SetParameters(Value=Column)
+            
+            y = Data[Column].values
+            FitResults = FitModel.fit(y, ModelParameters, x=x, nan_policy='omit')
+            fit_comps = FitResults.eval_components(FitResults.params, x=fit_x)
+            fit_y = FitResults.eval(x=fit_x)
+            ParameterNames = [i for i in FitResults.params.keys()]
+            for Parameter in (ParameterNames) :
+                FitsParameters[Column][Parameter] = FitResults.params[Parameter].value
+            Fits[Column] = fit_y
+            FitsResults.append(FitResults)
+            FitsComponents.append(fit_comps)
+            
+            sys.stdout.write(("\rFitting %i out of "+str(Data.shape[1])) % (idx+1))
+            sys.stdout.flush()
+        
+        
+        
+        self.Fits = Fits
+        self.FitsParameters = FitsParameters
+        self.FitsResults = FitsResults
+        self.FitsComponents = FitsComponents
+    
+    def ShowFits(self,xLabel='Energy (eV)',yLabel='Intensity (au)') :
+        
+        Data = self.Data
+        ErrorBars = self.ErrorBars
+        Fits = self.Fits
+        par = self.par
+        
+        FitsParameters = self.FitsParameters
+        FitsComponents = self.FitsComponents
+        
+        for idx,Column in enumerate(Data) :
+            
+            plt.figure(figsize = [6,4])
+            plt.errorbar(Data.index, Data[Column], yerr=ErrorBars[Column],label='Data', fmt='o', color='black')
+            plt.plot(Fits.index, Fits[Column], 'r-', label='Fit')
+            for Component in FitsComponents[idx] :
+                if not isinstance(FitsComponents[idx][Component],float) :
+                    plt.fill(Fits.index, FitsComponents[idx][Component], '--', label=Component[:-1], alpha=0.5)
+            plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
+            plt.xlabel(xLabel), plt.ylabel(yLabel)
+            plt.title(str(Column))
             plt.show()
+            
+            Peaks = list()
+            for Parameter in FitsParameters.index :
+                Name = Parameter.split('_')[0]
+                if Name not in Peaks :
+                    Peaks.append(Name)
 
-        ShowText = widgets.HTML(
-            value=self.ParameterString,
-            placeholder='',
-            description='',
-        )
-
-        display(widgets.Box([ShowPlot,ShowText]))
-
-    def PlotAnalysis(self,Name,FitParameters,ParameterNames) :
-        
-        cols = [col for col in FitParameters.columns if Name in col]
-        i = 0
-        while i < len(cols) :
-            plt.plot(FitParameters['Delay'], FitParameters[cols[i]],'.:', label=cols[i])
-            i+=1
-        plt.legend(), plt.xlabel('Delay (fs)'), plt.ylabel(Name)
-        plt.legend(frameon=False, loc='upper center', bbox_to_anchor=(1.2, 1), ncol=1)
-        plt.title(Name+' vs Delay')
-        plt.show()
-
-    def PlotDataAndFits(self,Energy,Signal,Fit_Energy,Fit_Signal,Delay) :
-        
-        fig = plt.figure(figsize=(12,4))
-
-        ax = fig.add_subplot(1, 2, 1)
-        x, y, z = Energy, Delay, Signal
-        plt.xlabel('Energy (eV)')
-        plt.ylabel('Delay (fs)')
-        plt.tick_params(axis = 'both', which = 'major')
-        plt.title('Data')
-        pcm = ax.pcolor(x, y, z, cmap='jet')
-
-        ax = fig.add_subplot(1, 2, 2)
-        x, y, z = Fit_Energy, Delay, Fit_Signal
-        plt.xlabel('Energy (eV)')
-        plt.ylabel('Delay (fs)')
-        plt.tick_params(axis = 'both', which = 'major')
-        plt.title('Fits')
-        pcm = ax.pcolor(x, y, z, cmap='jet')
-
-        plt.show()
+            string = ''
+            for Peak in Peaks :
+                string = string + Peak + ' | '
+                for Parameter in FitsParameters.index :
+                    if Peak == Parameter.split('_')[0] : 
+                        string = string + Parameter.split('_')[1] + ': ' + str(round(FitsParameters[Column][Parameter],3))
+                        string = string + ', '
+                string = string[:-2] + '\n'
+            print(string)
+            print(75*'_')

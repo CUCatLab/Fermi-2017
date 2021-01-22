@@ -1,0 +1,111 @@
+Description: 'CO-O-Ru Horizontal 2 CO : 1 O2'
+FolderPath: '../../Binned/BT2/'
+Runs: 'XAS_014_014'
+Background: 'XAS_099_099'
+xOffset: -0.31
+
+Scaling:
+  Type: 'Background'
+  Factor: 1.61
+
+Spectra:
+  Pi Star:
+    xRange: [286.3, 290]
+    NumPeaks: 7
+    NumRefPeaks: 2
+    Models:
+      Baseline:
+        assignment: 'Background'
+        model: 'Linear'
+        intercept: {value: 0}
+        slope: {value: 0}
+      Unpumped1:
+        assignment: 'Unpumped'
+        model: 'Gaussian'
+        amplitude: {value: 0.02, min: 0}
+        center: {value: 288.07, min: 287.92, vary: True}
+        sigma: {value: 0.356, vary: True}
+      Unpumped2:
+        assignment: 'Unpumped'
+        model: 'Gaussian'
+        amplitude: {value: 0.02, min: 0}
+        center: {value: 288.07, min: 287.92, vary: True}
+        sigma: {value: 0.2, vary: True}
+      Precursor10:
+        assignment: 'Precursor 1 ($\Delta v=0$)'
+        model: 'Gaussian'
+        amplitude: {value: 0.01, min: 0, vary: True}
+        center: {value: 287.42, vary: False}
+        sigma: {value: 0.12, vary: False}
+      Precursor11:
+        assignment: 'Precursor 1 ($\Delta v=1$)'
+        model: 'Gaussian'
+        amplitude: {set: "(expr='Precursor10_amplitude*1.18/4.1')", min: 0, vary: True}
+        center: {set: "(expr='Precursor10_center+0.256')", vary: False}
+        sigma: {value: 0.12, vary: False}
+      Unknown1:
+        assignment: 'Precursor 2'
+        model: 'Gaussian'
+        amplitude: {value: 0.01, min: 0, vary: True}
+        center: {value: 287.67, vary: False}
+        sigma: {value: 0.12, vary: False}
+      Unknown2:
+        assignment: 'Unknown'
+        model: 'Gaussian'
+        amplitude: {value: 0.01, min: 0, vary: True}
+        center: {value: 287.28, vary: False}
+        sigma: {value: 0.304, vary: False}
+    Cases:
+      Unpumped:
+        zRange: [-1000, -100]
+        Unknown1:
+          amplitude: {value: 0, vary: False}
+        Unknown2:
+          amplitude: {value: 0, vary: False}
+        Precursor10:
+          amplitude: {value: 0, vary: False}
+        Precursor11:
+          amplitude: {value: 0, vary: False}
+      Pumped:
+        zRange: [-100, 10000]
+        Baseline:
+          intercept: {value: "FitsParameters.iloc[:,0]['Baseline_intercept']", vary: False}
+          slope: {value: "FitsParameters.iloc[:,0]['Baseline_slope']", vary: False}
+        Unpumped1:
+          center: {value: "FitsParameters.iloc[:,0]['Unpumped1_center']", vary: False}
+          sigma: {value: "FitsParameters.iloc[:,0]['Unpumped1_sigma']", vary: False}
+        Unpumped2:
+          amplitude: {set: "(expr='Unpumped1_amplitude * '+str(FitsParameters.iloc[:,0]['Unpumped2_amplitude']/FitsParameters.iloc[:,0]['Unpumped1_amplitude']))"}
+          center: {value: "FitsParameters.iloc[:,0]['Unpumped2_center']", vary: False}
+          sigma: {value: "FitsParameters.iloc[:,0]['Unpumped2_sigma']", vary: False}
+
+  Middle:
+    xRange: [289,291.8]
+    NumPeaks: 1
+    NumRefPeaks: 0
+
+  Shape Resonance:
+    xRange: [292,295]
+    NumPeaks: 1
+    NumRefPeaks: 0
+
+Trends:
+  xRange: [-2000,3000]
+  Fits:
+    Unpumped1: {'a': -0.01, 'b': 0.003, 't0': 0, 'sigma': 600}
+    Unpumped2: {'a': 0.009, 'b': 0, 't0': 500, 'sigma': 800}
+    Unknown1: {'a': 0.006, 'b': 0, 't0': 300, 'sigma': 300}
+    Unknown2: {'a': 0.003, 'b': 0, 't0': 700, 'sigma': 900}
+    Precursor10: {'a': 0.003, 'b': 0, 't0': 700, 'sigma': 900}
+    Precursor11: {'a': 0.003, 'b': 0, 't0': 700, 'sigma': 900}
+  # Data:
+  #   Low: {'center': 286.7, 'a': 95, 'b': 0, 't0': 100, 'sigma': 264}
+  #   Precursor1: {'center': 287.4, 'a': 361, 'b': 0, 't0': 1113, 'sigma': 1462}
+  #   Precursor2: {'center': 287.6, 'a': 232, 'b': 0, 't0': 1593, 'sigma': 1849}
+  #   Unpumped: {'center': 288.7, 'a': -43, 'b': 0, 't0': 344, 'sigma': 557}
+  Data:
+    Low: {'center': 286.7, 'a': 0.1, 't0': 100, 'sigma': 264}
+    Precursor1: {'center': 287.4, 'a': 0.03, 't0': 1113, 'sigma': 1462}
+    Precursor2: {'center': 287.6, 'a': 0.02, 't0': 1593, 'sigma': 1849}
+    Unknown: {'center': 287.6, 'a': 0.02, 't0': 1000, 'sigma': 1440}
+    Unpumped: {'center': 288.7, 'a': -0.0015, 't0': 700, 'sigma': 400}
