@@ -4,6 +4,7 @@ from os.path import isfile, join
 import sys
 import h5py
 import numpy as np
+import pandas as pd
 from pandas import DataFrame as df
 import matplotlib.pyplot as plt
 import cmath
@@ -20,9 +21,7 @@ class DataTools :
     
     def __init__(self) :
         
-        self.ParametersFolder = os.getcwd()+'/Parameters'
-        self.FitsFolder = os.getcwd()+'/Fits'
-        self.FiguresFolder = os.getcwd()+'/Figures'
+        pass
     
     def FileList(self,FolderPath,Filter) :
         
@@ -34,7 +33,7 @@ class DataTools :
         
         return FileList
     
-    def LoadData(self,DataFile,par) :
+    def LoadBinnedData(self,DataFile,par) :
         
         # Check file
         f = h5py.File(par['FolderPath'] + '/' + DataFile, 'r')
@@ -68,6 +67,16 @@ class DataTools :
         ErrorBars = ErrorBars.dropna(axis=1, how='all')
         
         return Data, ErrorBars
+    
+    def LoadHDF(self,Folder,File) :
+        
+        Store = pd.HDFStore(Folder + '/' + File)
+        Data = {'File': File}
+        for key in Store.keys() :
+            Data[str.replace(key,'/','')] = Store.get(key)
+        Store.close()
+
+        return Data
     
     def TrimData(self,Data,xRange) :
         
@@ -106,6 +115,7 @@ class DataTools :
             plt.show()
 
         return Data, ErrorBars
+        
 
 ##### Fit Tools #####
 
