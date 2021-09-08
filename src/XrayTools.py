@@ -42,14 +42,17 @@ pio.templates[pio.templates.default].layout.update(dict(
         )
 ))
 
+Folders = {}
+Folders['Parameters'] = os.getcwd()+'/../Parameters'
+Folders['Fits'] = os.getcwd()+'/../Fits'
+Folders['Figures'] = os.getcwd()+'/../Figures'
+Folders['Binned'] = os.getcwd()+'/../Binned/BT2'
+
 class Fit :
     
     def __init__(self) :
         
-        self.ParametersFolder = os.getcwd()+'/../Parameters'
-        self.FitsFolder = os.getcwd()+'/../Fits'
-        self.FiguresFolder = os.getcwd()+'/../Figures'
-        self.BinnedFolder = os.getcwd()+'/../Binned/BT2'
+        self.Folders = Folders
         
     def LoadData(self,ParametersFile,DataFile,xRange=[-float('inf'),float('inf')]) :
 
@@ -213,7 +216,8 @@ class Fit :
         CopyParameters.on_click(CopyParameters_Clicked)
 
         def Save2File_Clicked(b) :
-            FitsFile = self.FitsFolder +'/' + self.ParametersFile[1] + ' - ' + str.replace(self.DataFile,'.h5','') + ' - ' + self.Region.value + '.hdf'
+            os.makedirs(Folders['Fits'], exist_ok=True)
+            FitsFile = Folders['Fits'] +'/' + self.ParametersFile[1] + ' - ' + str.replace(self.DataFile,'.h5','') + ' - ' + self.Region.value + '.hdf'
             Data.to_hdf(FitsFile,'Data',mode='w')
             ErrorBars.to_hdf(FitsFile,'ErrorBars',mode='a')
             Fits.to_hdf(FitsFile,'Fits',mode='a')
@@ -234,7 +238,7 @@ class Fit :
         ##### Button Functions #####
 
         def UpdateFiles_Clicked(b):
-            with open(self.ParametersFolder+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
+            with open(Folders['Parameters']+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
                 par = yaml.safe_load(stream)
             self.DataFiles.options = dt.FileList(par['FolderPath'],[par['Runs']])
         UpdateFiles = widgets.Button(description="Update",layout = Layout(width='10%'))
@@ -243,7 +247,7 @@ class Fit :
         def FitData_Clicked(b):
             with out :
                 clear_output(True)
-                self.LoadData([self.ParametersFolder,self.ParametersFiles.value],self.DataFiles.value)
+                self.LoadData([Folders['Parameters'],self.ParametersFiles.value],self.DataFiles.value)
                 self.Fit(self.Region.value)
         FitData = widgets.Button(description="Fit",layout = Layout(width='10%'))
         FitData.on_click(FitData_Clicked)
@@ -251,7 +255,7 @@ class Fit :
         ##### Widgets #####
 
         self.ParametersFiles = widgets.Dropdown(
-            options=dt.FileList(self.ParametersFolder,['.yaml']),
+            options=dt.FileList(Folders['Parameters'],['.yaml']),
             description='Parameter File',
             layout=Layout(width='70%'),
             style = {'description_width': '150px'},
@@ -266,7 +270,7 @@ class Fit :
             disabled = False,
         )
 
-        with open(self.ParametersFolder+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
+        with open(Folders['Parameters']+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
             par = yaml.safe_load(stream)
 
         self.DataFiles = widgets.Dropdown(
@@ -288,10 +292,7 @@ class Trends :
     
     def __init__(self) :
         
-        self.ParametersFolder = os.getcwd()+'/../Parameters'
-        self.FitsFolder = os.getcwd()+'/../Fits'
-        self.FiguresFolder = os.getcwd()+'/../Figures'
-        self.BinnedFolder = os.getcwd()+'/../Binned/BT2'
+        self.Folders = Folders
     
     def LoadData(self,ParametersFile,DataFile) :
         
@@ -395,16 +396,16 @@ class Trends :
         ##### Button Functions #####
 
         def UpdateFiles_Clicked(b):
-            with open(self.ParametersFolder+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
+            with open(Folders['Parameters']+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
                 par = yaml.safe_load(stream)
-            self.DataFiles.options = dt.FileList(self.FitsFolder,[par['Runs']])
+            self.DataFiles.options = dt.FileList(Folders['Fits'],[par['Runs']])
         UpdateFiles = widgets.Button(description="Update",layout = Layout(width='10%'))
         UpdateFiles.on_click(UpdateFiles_Clicked)
         
         def FitData_Clicked(b):
             with out :
                 clear_output(True)
-                self.LoadData([self.ParametersFolder,self.ParametersFiles.value],[self.FitsFolder,self.DataFiles.value])
+                self.LoadData([Folders['Parameters'],self.ParametersFiles.value],[Folders['Fits'],self.DataFiles.value])
                 self.Fit()
         FitData = widgets.Button(description="Fit",layout = Layout(width='10%'))
         FitData.on_click(FitData_Clicked)
@@ -412,18 +413,18 @@ class Trends :
         ##### Widgets #####
 
         self.ParametersFiles = widgets.Dropdown(
-            options=dt.FileList(self.ParametersFolder,['.yaml']),
+            options=dt.FileList(Folders['Parameters'],['.yaml']),
             description='Parameter File',
             layout=Layout(width='70%'),
             style = {'description_width': '150px'},
             disabled=False,
         )
 
-        with open(self.ParametersFolder+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
+        with open(Folders['Parameters']+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
             par = yaml.safe_load(stream)
 
         self.DataFiles = widgets.Dropdown(
-            options=dt.FileList(self.FitsFolder,[par['Runs']]),
+            options=dt.FileList(Folders['Fits'],[par['Runs']]),
             description='Data File',
             layout=Layout(width='50%'),
             style = {'description_width': '150px'},
@@ -441,10 +442,10 @@ class Angles :
     
     def __init__(self) :
         
-        self.ParametersFolder = os.getcwd()+'/../Parameters'
-        self.FitsFolder = os.getcwd()+'/../Fits'
-        self.FiguresFolder = os.getcwd()+'/../Figures'
-        self.BinnedFolder = os.getcwd()+'/../Binned/BT2'
+        Folders['Parameters'] = os.getcwd()+'/../Parameters'
+        Folders['Fits'] = os.getcwd()+'/../Fits'
+        Folders['Figures'] = os.getcwd()+'/../Figures'
+        Folders['Binned'] = os.getcwd()+'/../Binned/BT2'
     
     def LoadData(self,HorFile,VerFile) :
         
@@ -620,7 +621,8 @@ class Angles :
         )
         
         def Angles2File_Clicked(b) :
-            Angles.to_hdf(self.FitsFolder+'/'+Filename.value+'.hdf','Angles')
+            os.makedirs(Folders['Fits'], exist_ok=True)
+            Angles.to_hdf(Folders['Fits']+'/'+Filename.value+'.hdf','Angles')
         Angles2File = widgets.Button(description="Save to File")
         Angles2File.on_click(Angles2File_Clicked)
         
@@ -635,15 +637,15 @@ class Angles :
         ##### Button Functions #####
 
         def UpdateFiles_Clicked(b):
-            self.HorFiles.options = dt.FileList(self.FitsFolder,['Hor'])
-            self.VerFiles.options = dt.FileList(self.FitsFolder,['Ver'])
+            self.HorFiles.options = dt.FileList(Folders['Fits'],['Hor'])
+            self.VerFiles.options = dt.FileList(Folders['Fits'],['Ver'])
         UpdateFiles = widgets.Button(description="Update",layout = Layout(width='10%'))
         UpdateFiles.on_click(UpdateFiles_Clicked)
         
         def Calculate_Clicked(b):
             with out :
                 clear_output(True)
-                self.LoadData([self.FitsFolder,self.HorFiles.value],[self.FitsFolder,self.VerFiles.value])
+                self.LoadData([Folders['Fits'],self.HorFiles.value],[Folders['Fits'],self.VerFiles.value])
                 self.Calculate()
         Calculate = widgets.Button(description="Calculate",layout = Layout(width='10%'))
         Calculate.on_click(Calculate_Clicked)
@@ -651,18 +653,18 @@ class Angles :
         ##### Widgets #####
 
         self.ParametersFiles = widgets.Dropdown(
-            options=dt.FileList(self.ParametersFolder,['.yaml']),
+            options=dt.FileList(Folders['Parameters'],['.yaml']),
             description='Parameter File',
             layout=Layout(width='70%'),
             style = {'description_width': '150px'},
             disabled=False,
         )
 
-        with open(self.ParametersFolder+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
+        with open(Folders['Parameters']+'/'+self.ParametersFiles.value+'.yaml', 'r') as stream:
             par = yaml.safe_load(stream)
 
         self.HorFiles = widgets.Dropdown(
-            options=dt.FileList(self.FitsFolder,['Hor']),
+            options=dt.FileList(Folders['Fits'],['Hor']),
             description='Horizontal',
             layout=Layout(width='50%'),
             style = {'description_width': '150px'},
@@ -670,7 +672,7 @@ class Angles :
         )
         
         self.VerFiles = widgets.Dropdown(
-            options=dt.FileList(self.FitsFolder,['Ver']),
+            options=dt.FileList(Folders['Fits'],['Ver']),
             description='Vertical',
             layout=Layout(width='50%'),
             style = {'description_width': '150px'},
